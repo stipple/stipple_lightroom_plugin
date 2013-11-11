@@ -65,8 +65,9 @@ function StippleUser.login( propertyTable )
 
     if propertyTable.LR_editingExistingPublishConnection then
       if auth.user and propertyTable.nsid ~= auth.user.id then
-        LrDialogs.message( LOC "$$$/Stipple/CantChangeUserID=You can not change Stipple accounts on an existing publish connection. Please log in again with the account you used when you first created this connection." )
-        return
+        -- propertyTable.nsid = auth.user.id
+        -- LrDialogs.message( LOC "$$$/Stipple/CantChangeUserID=You can not change Stipple accounts on an existing publish connection. Please log in again with the account you used when you first created this connection." )
+        -- return
       end
     end
 
@@ -117,6 +118,7 @@ function StippleUser.verifyLogin(propertyTable)
           propertyTable.validAccount = true
         end
       else
+        propertyTable.LR_editingExistingPublishConnection = true
         notLoggedIn(propertyTable)
       end
       

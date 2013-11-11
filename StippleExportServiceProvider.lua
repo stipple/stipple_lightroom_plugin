@@ -553,7 +553,7 @@ function exportServiceProvider.processRenderedPhotos( functionContext, exportCon
     progressScope:setPortionComplete( ( i - 1 ) / nPhotos ) -- Update progress scope.
     
     local photo = rendition.photo -- Get next photo.
-    local stipplePhotoId = stipplePhotoIdsForRenditions[rendition] -- See if we previously uploaded this photo.
+    local stipplePhotoId = rendition.publishedPhotoId -- See if we previously uploaded this photo.
 
     if not rendition.wasSkipped then
       local success, pathOrMessage = rendition:waitForRender() -- Update progress scope again once we've got rendered photo.
@@ -598,18 +598,18 @@ function exportServiceProvider.processRenderedPhotos( functionContext, exportCon
           }
         )
 
-        if didReplace then
-          -- The replace call used by StippleAPI.uploadPhoto ignores all of the metadata that is passed
-          -- in above. We have to manually upload that info after the fact in this case.
-          if exportSettings.titleRepublishBehavior == 'replace' then
-            --StippleAPI.callRestMethod( exportSettings, {
-                        --method = 'stipple.photos.setMeta',
-                        --photo_id = stipplePhotoId,
-                        --title = title or '',
-                        --description = description or '',
-                         --})
-          end
-        end
+        -- if didReplace then
+        --   -- The replace call used by StippleAPI.uploadPhoto ignores all of the metadata that is passed
+        --   -- in above. We have to manually upload that info after the fact in this case.
+        --   if exportSettings.titleRepublishBehavior == 'replace' then
+        --     --StippleAPI.callRestMethod( exportSettings, {
+        --                 --method = 'stipple.photos.setMeta',
+        --                 --photo_id = stipplePhotoId,
+        --                 --title = title or '',
+        --                 --description = description or '',
+        --                  --})
+        --   end
+        -- end
 
         -- When done with photo, delete temp file. There is a cleanup step that happens later,
         -- but this will help manage space in the event of a large upload.
@@ -623,13 +623,12 @@ function exportServiceProvider.processRenderedPhotos( functionContext, exportCon
           if not isDefaultCollection then
             -- Create or update this photoset.
             photosetUrl = 'https://stipple.com'
-
-            --photosetId, photosetUrl = StippleAPI.createOrUpdatePhotoset(exportSettings, {
-            --photosetId = photosetId,
-            --title = publishedCollectionInfo.name,
-            --description = ??,
-            --primary_photo_id = uploadedPhotoIds[ 1 ],
-            --})
+            photosetId, photosetUrl = StippleAPI.createOrUpdatePhotoset(exportSettings, {
+              photosetId = photosetId,
+              name = publishedCollectionInfo.name,
+              description = '',
+              primary_photo_id = uploadedPhotoIds[ 1 ],
+            })
           else                        
             photosetUrl = StippleAPI.constructPhotostreamURL( exportSettings ) -- Photostream: find the URL.
           end
@@ -646,10 +645,10 @@ function exportServiceProvider.processRenderedPhotos( functionContext, exportCon
           })
 
           -- Add the uploaded photos to the correct photoset.
-          -- StippleAPI.addPhotosToSet(exportSettings, {
-          --   photoId = stipplePhotoId,
-          --   photosetId = photosetId,
-          -- })                
+          StippleAPI.addPhotosToSet(exportSettings, {
+            photoId = stipplePhotoId,
+            photosetId = photosetId,
+          })                
         else
           photoUrl = StippleAPI.constructPhotoURL(exportSettings, {
             id = stipplePhotoId,
@@ -673,7 +672,7 @@ function exportServiceProvider.processRenderedPhotos( functionContext, exportCon
 
   if #uploadedPhotoIds > 0 then
     if (not isDefaultCollection) then
-      --exportSession:recordRemoteCollectionId( photosetId )
+      exportSession:recordRemoteCollectionId( photosetId )
     end
 
     -- Set up some additional metadata for this collection.

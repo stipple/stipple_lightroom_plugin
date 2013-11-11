@@ -156,7 +156,7 @@ end
 
 --------------------------------------------------------------------------------
 
-function StippleAPI.callRestMethod( propertyTable, params )
+function StippleAPI.getRestMethod( propertyTable, params )
   local apiKey = StippleAPI.getApiKeyAndSecret()
 
   if not params.api_key then
@@ -239,11 +239,66 @@ end
 
 --------------------------------------------------------------------------------
 
+function StippleAPI.postRestMethod( propertyTable, params )
+  assert( type( params ) == 'table', 'StippleAPI.postRestMethod: params must be a table' )
+  local apiKey = StippleAPI.getApiKeyAndSecret()
+  local url = string.format( urlBase .. '/api/v1/%s', assert( params.url ) )
+  params.url = nil
+
+  if not params.api_key then
+    params.api_key = apiKey
+  end
+
+  local suppressError = params.suppressError
+  local suppressErrorCodes = params.suppressErrorCodes
+  local skipAuthToken = params.skipAuthToken
+
+  params.suppressError = nil
+  params.suppressErrorCodes = nil
+  params.skipAuthToken = nil
+  local chunks = {}
+
+  for key, value in pairs(params) do
+    if (type(value) == 'table') then
+      for attribute, val in pairs(value) do 
+        if (type(attribute) == 'number') then
+          attribute = ''
+        end
+        table.insert(chunks, { name = key .. '[' .. attribute .. ']', value = val })
+      end
+    else
+      table.insert(chunks,  {name = key, value = value })
+    end
+  end
+
+  local response, hdrs = LrHttp.postMultipart( url, chunks ) -- Post it and wait for confirmation.
+
+  if not response then
+    if hdrs and hdrs.error then
+      LrErrors.throwUserError( formatError( hdrs.error.nativeCode ) )
+    end
+  end
+
+  local json = JSON:decode(response)
+  if tonumber(json.status) == 200 then
+    return json
+  else
+    return json
+  end
+end
+
+--------------------------------------------------------------------------------
+
 function StippleAPI.uploadPhoto( propertyTable, params )
   assert( type( params ) == 'table', 'StippleAPI.uploadPhoto: params must be a table' )
 
   local apiKey = StippleAPI.getApiKeyAndSecret()
-  local postUrl = params.id and urlBase .. '/api/v1/photos/update' or urlBase .. '/api/v1/photos/upload/'
+  local postUrl = ''
+  if not not params.id then 
+    postUrl = urlBase .. '/api/v1/photos/update' 
+  else 
+    postUrl = urlBase .. '/api/v1/photos/upload/' 
+  end
   local originalParams = params.id and table.shallowcopy( params )
 
   logger:info( 'uploading photo', params.filePath )
@@ -281,7 +336,7 @@ function StippleAPI.uploadPhoto( propertyTable, params )
   local json = JSON:decode(response)
 
   if tonumber(json.status) == 200 then
-    return json.data.photo.id
+    return tostring(json.data.photo.id)
   elseif params.id and json.error and tonumber(hdrs.error.nativeCode) == 422 then
         -- Photo is missing. Most likely, the user deleted it outside of Lightroom. Just repost it.
 
@@ -299,7 +354,7 @@ end
 --------------------------------------------------------------------------------
 
 function StippleAPI.openAuthUrl()
-  local response = StippleAPI.callRestMethod( nil, { url = 'users/me' } )
+  local response = StippleAPI.getRestMethod( nil, { url = 'users/me' } )
 
   return response.data
 end
@@ -337,13 +392,26 @@ end
 --------------------------------------------------------------------------------
 
 function StippleAPI.createOrUpdatePhotoset( propertyTable, params )
-  return true
+  local response = {}
+  if params.photosetId then
+    StippleAPI.postRestMethod(nil, { url = "sets/update", id = params.photosetId, set = { name = params.title } })
+    return params.photosetId, StippleAPI.constructPhotosetURL(propertyTable, params.photosetId)
+  end
+  
+  response = StippleAPI.postRestMethod(nil, { url = "sets/create", set = params })
+  
+  return tostring(response.data.set.id), StippleAPI.constructPhotosetURL(propertyTable, tostring(response.data.set.id))
 end
 
 --------------------------------------------------------------------------------
 
 function StippleAPI.listPhotosFromPhotoset( propertyTable, params )
-  return nil
+  local response, ids = {}, {}
+  response = StippleAPI.getRestMethod(nil, {url = 'sets/' .. params.photosetId})
+  for _,photo in pairs(response.data.set.photos) do
+    table.insert(ids,photo.id)
+  end
+  return ids
 end
 
 --------------------------------------------------------------------------------
@@ -355,18 +423,23 @@ end
 --------------------------------------------------------------------------------
 
 function StippleAPI.addPhotosToSet( propertyTable, params )
+  local data = {}
+  data = StippleAPI.postRestMethod(nil, { url = 'sets/add', id = params.photosetId, photo_ids = params.photoId })
   return true
 end
 
 --------------------------------------------------------------------------------
 
-function StippleAPI.deletePhoto( propertyTable, params )
+function StippleAPI.deletePhotoFromPhotoset( propertyTable, params )
+  local data = {}
+  data = StippleAPI.postRestMethod(nil, { url = 'sets/remove', id = params.photosetId, photo_ids = params.photoId })
   return true
 end
 
 --------------------------------------------------------------------------------
 
 function StippleAPI.deletePhotoset( propertyTable, params )
+  data = StippleAPI.postRestMethod(nil, {url = 'sets/delete', id = params.photosetId})
   return true
 end
 

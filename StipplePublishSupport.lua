@@ -1,5 +1,8 @@
 -- Lightroom SDK
 local LrDialogs = import 'LrDialogs'
+local LrApplication = import 'LrApplication'
+local LrTasks = import 'LrTasks'
+local catalog = LrApplication.activeCatalog()
 
 -- Stipple plug-in
 require 'StippleAPI'
@@ -503,10 +506,22 @@ end
     -- @param localCollectionId (number) The local identifier for the collection for which
         -- photos are being removed.
 
-function publishServiceProvider.deletePhotosFromPublishedCollection( publishSettings, arrayOfPhotoIds, deletedCallback )
-  for i, photoId in ipairs( arrayOfPhotoIds ) do
-    StippleAPI.deletePhoto( publishSettings, { photoId = photoId, suppressErrorCodes = { [ 1 ] = true } } ) -- If Stipple says photo not found, ignore that.
-    deletedCallback( photoId )
+function publishServiceProvider.deletePhotosFromPublishedCollection( publishSettings, arrayOfPhotoIds, deletedCallback, localId )
+  local set = {}
+
+  local function removePhotos(setId)
+    for i, photoId in ipairs( arrayOfPhotoIds ) do
+      StippleAPI.deletePhotoFromPhotoset( publishSettings, { photoId = photoId, photosetId = setId,  suppressErrorCodes = { [ 1 ] = true } } ) -- If Stipple says photo not found, ignore that.
+    end
+  end
+  
+  LrTasks.startAsyncTask(function()
+    set = catalog:getPublishedCollectionByLocalIdentifier(localId)
+    removePhotos(set:getRemoteId())
+  end)
+
+  for _,id in ipairs( arrayOfPhotoIds ) do
+    deletedCallback( id )
   end
 end
 
