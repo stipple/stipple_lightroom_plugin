@@ -535,15 +535,10 @@ function exportServiceProvider.processRenderedPhotos( functionContext, exportCon
 
   -- Get a list of photos already in this photoset so we know which ones we can replace and which have
   -- to be re-uploaded entirely.
-  local photosetPhotoIds = photosetId and StippleAPI.listPhotosFromPhotoset( exportSettings, { photosetId = photosetId } )
+  local photosetPhotos = photosetId and StippleAPI.listPhotosFromPhotoset( exportSettings, { photosetId = photosetId } )
 
   local photosetPhotosSet = {} -- Turn it into a set for quicker access later.
 
-  if photosetPhotoIds then
-    for _, id in ipairs( photosetPhotoIds ) do
-      photosetPhotosSet[ id ] = true
-    end
-  end
 
   local couldNotPublishBecauseFreeAccount = {}
   local stipplePhotoIdsForRenditions = {}
@@ -593,7 +588,9 @@ function exportServiceProvider.processRenderedPhotos( functionContext, exportCon
           id = stipplePhotoId,
           filePath = pathOrMessage,
           photo = { 
-            caption = description, source_page = "Stipple Lightroom Plugin" },
+            caption = description, 
+            source_page = "" 
+          },
             claim = 1, -- always claim the photo
           }
         )

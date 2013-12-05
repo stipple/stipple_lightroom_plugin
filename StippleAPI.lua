@@ -126,6 +126,11 @@ function StippleAPI.getApiKeyAndSecret()
   return apiKey
 end
 
+function StippleAPI.resetApiKey()
+  prefs.apiKey = ''
+  StippleAPI.getApiKeyAndSecret()
+end
+
 --------------------------------------------------------------------------------
 
 function StippleAPI.makeApiSignature( params )
@@ -211,7 +216,12 @@ function StippleAPI.getRestMethod( propertyTable, params )
 
     -- Mac has different implementation with that on Windows when the server refuses the request.
   if hdrs.status ~= 200 then
-    LrErrors.throwUserError( formatError( hdrs.status ) )
+    if hdrs.status == 401 then
+      StippleAPI.resetApiKey()
+
+    else
+      LrErrors.throwUserError( formatError( hdrs.status ) )
+    end
   end
 
   appearsAlive = true
@@ -350,6 +360,17 @@ function StippleAPI.uploadPhoto( propertyTable, params )
       tostring( json.status )))
   end
 end
+--------------------------------------------------------------------------------
+
+function StippleAPI.getSetPhotos( propertyTable, params )
+  local response = StippleAPI.getRestMethod( nil, { url = params.url or 'sets/' .. params.setId })
+  if response.data and response.data.set and response.data.set.photos and #response.data.set.photos < 1 then
+    return
+  end
+  for _,photo in pairs(response.data.set.photos) do
+    tryAddPhoto(photo)
+  end
+end
 
 --------------------------------------------------------------------------------
 
@@ -406,12 +427,12 @@ end
 --------------------------------------------------------------------------------
 
 function StippleAPI.listPhotosFromPhotoset( propertyTable, params )
-  local response, ids = {}, {}
+  local response, photos = {}, {}
   response = StippleAPI.getRestMethod(nil, {url = 'sets/' .. params.photosetId})
   for _,photo in pairs(response.data.set.photos) do
-    table.insert(ids,photo.id)
+    table.insert(photos,photo)
   end
-  return ids
+  return photos
 end
 
 --------------------------------------------------------------------------------
